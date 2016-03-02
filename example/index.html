@@ -1,0 +1,89 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>DragDropContainer Example</title>
+ 		
+	</head>
+	<body onload="init();">
+		<canvas height="500" width="600" id="myCanvas"></canvas>
+
+		<script src="http://code.createjs.com/easeljs-0.8.2.min.js"></script>
+ 		<script src="../build/ddcontainer.min.js"></script>
+ 		<script>
+ 			function drawCircle(container, color) {
+				var circle = new createjs.Shape();
+				circle.graphics.beginFill(color).dc(50, 50, 40);
+				container.container.addChild(circle);
+			}
+
+ 			function init() {
+ 				var stage = new createjs.Stage("myCanvas");
+				stage.enableMouseOver(20);
+				// this lets our drag continue to track the mouse even when it leaves the canvas
+				stage.mouseMoveOutside = true;
+				createjs.Touch.enable(stage);
+				createjs.Ticker.setFPS(60);
+
+				// Create a container
+				var container1 = new DDC.DragDropContainer(stage);
+				// Make it drag and droppable
+				container1.draggable().droppable();
+				// Draw a red circle in it
+				drawCircle(container1, 'red');
+
+				// Bind events for container1
+				container1.on('startdragging', function(e) {
+					console.log('Start container1');
+				});
+				container1.on('stopdragging', function(e) {
+					console.log('Stop container1');
+				});
+				container1.on('dragging', function(e) {
+					//console.log('Drag container1');
+					stage.update();
+				});
+				container1.on('overdroppable', function(e) {
+					console.log('Over container1');
+				});
+				container1.on('outdroppable', function(e) {
+					console.log('Out container1');
+				});
+				container1.on('hitdroppable', function(e) {
+					console.log('Hit container1');
+				});
+
+				// Create another container
+				var container2 = new DDC.DragDropContainer(stage);
+				container2.container.x = 200;
+				// Make it drag and droppable
+				container2.draggable().droppable();
+				// Craw a blue circle in it
+				drawCircle(container2, 'blue');
+
+				// Bind events for container2
+				container2.on('startdragging', function(e) {
+					console.log('Start dragging container2');
+				});
+				container2.on('stopdragging', function(e) {
+					console.log('Stop dragging container2');
+				});
+				container2.on('dragging', function(e) {
+					//console.log('Dragging container2');
+					stage.update();
+				});
+				container2.on('overdroppable', function(e) {
+					console.log('Over container2');
+				});
+				container2.on('outdroppable', function(e) {
+					console.log('Out container2');
+				});
+				container2.on('hitdroppable', function(e) {
+					console.log('Hit container2');
+				});
+
+				stage.update();
+ 			}
+ 		</script>
+	</body>
+</html>
