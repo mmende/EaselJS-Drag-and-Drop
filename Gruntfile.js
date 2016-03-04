@@ -28,7 +28,7 @@ module.exports = function(grunt) {
 				sourceMap: true,
 				sourceMapIncludeSources: true,
 				sourceMapIn: '.tmp/ddcontainer.js.map',
-				banner: '// (C) 2016 Aristech GmbH. All rights reserved.'
+				banner: '/*! v<%= pkg.version %> | Author: Martin Mende <martin.mende@aristech.de> | https://github.com/mmende/EaselJS-Drag-and-Drop */'
 			},
 			dist: {
 				src: '<%= concat.dist.dest %>',

@@ -17,11 +17,13 @@ var DDC;
          * Note: The drop events will be triggered at the droppable containers
          *       whereas the drag events will be triggered at the draggables.
          *
-         * @param {Container} parent The parent container where this container should be added to.
+         * @param {Container} parent    The parent container where this container should be added to.
+         * @param {any}       reference A reference object that can be used to identify the DragDropContainer.
          */
-        function DragDropContainer(parent) {
+        function DragDropContainer(parent, reference) {
             _super.call(this);
             this.container = new createjs.Container();
+            this.reference = reference;
             // Register the possible events
             this.registerEvent('startdragging');
             this.registerEvent('stopdragging');
@@ -62,6 +64,13 @@ var DDC;
             return this.disableDroppable();
         };
         /**
+         * Unbinds all events and removes the group from the parent
+         */
+        DragDropContainer.prototype.delete = function () {
+            this.draggable(false).droppable(false);
+            this.parent.removeChild(this.container);
+        };
+        /**
          * Enables draggable for the container.
          *
          * @returns {DragDropContainer} Returns the instance the method is called on (useful for chaining calls.)
@@ -69,9 +78,11 @@ var DDC;
         DragDropContainer.prototype.enableDraggable = function () {
             var that = this;
             var startOffset = new DDC.Point(0, 0);
-            var lastDroppable = null;
+            var lastDroppable;
             // When the draggable container is clicked
             this.downEvent = this.container.on('mousedown', function (dEvent) {
+                // Reset lastDroppable
+                lastDroppable = null;
                 // Prevent dragging on undraggables
                 if (dEvent.target.hasOwnProperty('isDraggable') && dEvent.target.isDraggable == false)
                     return;
@@ -83,6 +94,14 @@ var DDC;
                 // Init the result object with empty droppable
                 var eventResult = { draggable: that };
                 eventResult.draggable = that;
+                // Check if there is a initial droppable underlying
+                //var point: Point = new Point(dEvent.stageX, dEvent.stageY);
+                var point = that.parent.globalToLocal(dEvent.stageX, dEvent.stageY);
+                eventResult.droppable = that.getDroppableUnderPoint(point);
+                if (eventResult.droppable !== null) {
+                    eventResult.droppable.trigger('overdroppable', eventResult);
+                    lastDroppable = eventResult.droppable;
+                }
                 // Call the startdragging callbacks
                 that.trigger('startdragging', eventResult);
                 // Start track the move event
@@ -91,7 +110,8 @@ var DDC;
                     that.container.x = mEvent.stageX - startOffset.x;
                     that.container.y = mEvent.stageY - startOffset.y;
                     // Check all droppables for over
-                    var point = new DDC.Point(mEvent.stageX, mEvent.stageY);
+                    //var point: Point = new Point(mEvent.stageX, mEvent.stageY);
+                    var point = that.parent.globalToLocal(mEvent.stageX, mEvent.stageY);
                     eventResult.droppable = that.getDroppableUnderPoint(point);
                     // Call the dragging callbacks
                     that.trigger('dragging', eventResult);
@@ -108,26 +128,31 @@ var DDC;
                         else {
                             // The lastDroppable must have been another one (see check above)
                             // Therefore the outdroppable will be triggered on the last one
-                            lastDroppable.trigger('outdroppable', eventResult);
+                            // Another DragDropResult with lastDroppable as droppable must be sent therefore
+                            var lastEventResult = { draggable: eventResult.draggable, droppable: lastDroppable };
+                            lastDroppable.trigger('outdroppable', lastEventResult);
                             lastDroppable = eventResult.droppable;
                         }
                     }
                     else if (lastDroppable !== null) {
                         // The lastDroppable has no more hit as it seems
-                        lastDroppable.trigger('outdroppable', eventResult);
+                        // Another DragDropResult with lastDroppable as droppable must be sent therefore
+                        var lastEventResult = { draggable: eventResult.draggable, droppable: lastDroppable };
+                        lastDroppable.trigger('outdroppable', lastEventResult);
                         lastDroppable = null;
                     }
                 });
                 // And start track the up event
                 that.upEvent = that.container.on('pressup', function (uEvent) {
                     // Check all droppables for hit
-                    var point = new DDC.Point(uEvent.stageX, uEvent.stageY);
+                    //var point: Point = new Point(uEvent.stageX, uEvent.stageY);
+                    var point = that.parent.globalToLocal(uEvent.stageX, uEvent.stageY);
                     eventResult.droppable = that.getDroppableUnderPoint(point);
                     // Call the startdragging callbacks
                     that.trigger('stopdragging', eventResult);
                     // Unbind move and up events
                     that.container.off('pressmove', that.moveEvent);
-                    that.container.off('pressup', that.moveEvent);
+                    that.container.off('pressup', that.upEvent);
                     // Call hit droppable if such exists
                     if (eventResult.droppable !== null)
                         eventResult.droppable.trigger('hitdroppable', eventResult);
@@ -158,6 +183,8 @@ var DDC;
             this.overEvent = this.container.on('mouseover', function (oEvent) {
                 //console.log('Over:', that);
             });
+            // Also add a property __droppable so that the DisplayObject can be identified as droppable
+            this.container.__droppable = true;
             // Add the droppable to __droppables
             __droppables.push(this);
             // Return this to allow chaining
@@ -171,6 +198,9 @@ var DDC;
         DragDropContainer.prototype.disableDroppable = function () {
             // Remove eventListener
             this.container.off('mouseover', this.overEvent);
+            // Remove the __droppable property
+            if (this.container.hasOwnProperty('__droppable'))
+                delete this.container.__droppable;
             // Remove it from __droppables
             var index = __droppables.indexOf(this);
             if (index > -1)
@@ -182,6 +212,39 @@ var DDC;
         /** Some helper functions to find the right droppable **/
         /*******************************************************/
         /**
+         * Searches the ancestry of an element for the __droppable property and returns the closes container with this property if such exists.
+         *
+         * @param  {DisplayObject} element The DisplayObject to check.
+         *
+         * @return {any}                   A Container with the __droppable property or null if no such exists.
+         */
+        DragDropContainer.prototype.searchAncestryForDroppable = function (element) {
+            var droppable = null;
+            var currentElement = element;
+            while (true) {
+                // Skip the draggable itself
+                if (currentElement === this.container)
+                    return null;
+                // Check if currentElement has the __droppable property
+                if (currentElement.hasOwnProperty('__droppable') && currentElement.__droppable === true) {
+                    droppable = currentElement;
+                    break;
+                }
+                // Check if the element has a parent that is not the draggable parent
+                if (currentElement.hasOwnProperty('parent') &&
+                    currentElement.parent !== null &&
+                    currentElement.parent !== this.parent) {
+                    // Set the parent as the new currentElement
+                    currentElement = currentElement.parent;
+                }
+                else {
+                    // The top was reached
+                    break;
+                }
+            }
+            return droppable;
+        };
+        /**
          * Checks all droppables for a hit with the draggable.
          *
          * @param {Point} point The point.
@@ -190,15 +253,18 @@ var DDC;
             var droppables = this.parent.getObjectsUnderPoint(point.x, point.y, 2);
             var droppable = null;
             // Check all droppables under the point
+            var oldIndex = -1;
             for (var i = 0; i < droppables.length; ++i) {
-                // Skip the draggable itself
-                if (droppables[i].parent && droppables[i].parent.id === this.container.id)
+                // Get the closest droppable to droppables[i] that is not the draggable itself
+                var possibleDroppable = this.searchAncestryForDroppable(droppables[i]);
+                if (possibleDroppable === null)
                     continue;
-                // Set this as droppable if it has a higher z-index
-                var oldIndex = droppable ? this.parent.getChildIndex(droppable) : -1;
-                var newIndex = this.parent.getChildIndex(droppables[i].parent);
-                if (newIndex > oldIndex)
-                    droppable = droppables[i].parent;
+                // Compare the index of the found droppable with the current highest matched droppable
+                var newIndex = this.parent.getChildIndex(possibleDroppable);
+                if (newIndex > oldIndex) {
+                    droppable = possibleDroppable;
+                    oldIndex = newIndex;
+                }
             }
             return droppable;
         };
