@@ -1,5 +1,5 @@
 # EaselJS-Drag-and-Drop
-*A easy to use drag and drop container for EaselJS*
+*An easy to use drag and drop container for EaselJS*
 
 A DragDropContainer can be created like:
 
@@ -15,7 +15,26 @@ ddcontainer.droppable();
 ```
 
 The DragDropContainer will then be added to `parentContainer` (e.g. the stage).
-The `ddcontainer` has a property `container` which is the actual easeljs container to draw to.
+The `ddcontainer` has a property `container` which is the actual easeljs container to draw to. You can optionally add a reference as second parameter when creating the container that is than accessible as `reference` property of the draggable / droppable in the event results:
+
+
+```js
+// Create a ddcontainer
+var myObject = {n: 42};
+var ddcontainer = new DDC.DragDropContainer(parentContainer, myObject);
+ddcontainer.draggable().droppable();
+
+// Create a second ddcontainer
+var myObject2 = {n: 24};
+var ddcontainer2 = new DDC.DragDropContainer(parentContainer, myObject2);
+ddcontainer2.draggable().droppable();
+
+// Bind the overdroppable event and check the reference
+ddcontainer.on('overdroppable', function(dropEvent) {
+	var dragRef = dropEvent.draggable.reference;
+	console.log('The answer to life the universe and everything is:', dragRef.n);
+});
+```
 
 ## Methods
 
